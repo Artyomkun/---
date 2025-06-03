@@ -1,0 +1,1496 @@
+import json
+import random
+import time
+import os
+
+
+settings = {
+    "logs_enabled": True,
+    "language": "ru",
+    "ai_speed": "normal",
+    "ai_delay": 2.0,
+    "human_delay": 0.0,
+    "training_display": "minimal",
+    "training_opponent": "ai",
+    "adaptivity_level": 0.7,
+    "difficulty": "medium",
+}
+
+ai_memory = {}
+human_memory = {}
+ai_logs = []
+stats = {
+    "AI": {"wins": 0, "losses": 0, "draws": 0},
+    "Human": {"wins": 0, "losses": 0, "draws": 0},
+    "Opponent": {"wins": 0, "losses": 0, "draws": 0},
+}
+MAX_ATTEMPTS = 3
+
+def change_language():
+    languages = ["ru", "en", "es", "es_MX", "hi", "ar", "zh", "fr", "de", "ja", "pt", "la", "uk", "sa"]
+    lang_translations = {
+        "ru": ["Russian", "English", "Spanish", "Mexican Spanish", "Hindi", "Arabic", "Chinese", "French", "German", "Japanese", "Portuguese", "Latin", "Ukrainian", "Sanskrit"],
+        "en": ["Russian", "English", "Spanish", "Mexican Spanish", "Hindi", "Arabic", "Chinese", "French", "German", "Japanese", "Portuguese", "Latin", "Ukrainian", "Sanskrit"],
+        "es": ["Ruso", "Inglés", "Español", "Español mexicano", "Hindi", "Árabe", "Chino", "Francés", "Alemán", "Japonés", "Portugués", "Latín", "Ucraniano", "Sánscrito"],
+        "es_MX": ["Ruso", "Inglés", "Español", "Español mexicano", "Hindi", "Árabe", "Chino", "Francés", "Alemán", "Japonés", "Portugués", "Latín", "Ucraniano", "Sánscrito"],
+        "hi": ["रूसी", "अंग्रेजी", "स्पेनिश", "मेक्सिकन स्पेनिश", "हिन्दी", "अरबी", "चीनी", "फ्रेंच", "जर्मन", "जापानी", "पुर्तगाली", "लैटिन", "यूक्रेनी", "संस्कृत"],
+        "ar": ["الروسية", "الإنجليزية", "الإسبانية", "الإسبانية المكسيكية", "الهندية", "العربية", "الصينية", "الفرنسية", "الألمانية", "اليابانية", "البرتغالية", "اللاتينية", "الأوكرانية", "السنسكريتية"],
+        "zh": ["俄语", "英语", "西班牙语", "墨西哥西班牙语", "印地语", "阿拉伯语", "中文", "法语", "德语", "日语", "葡萄牙语", "拉丁语", "乌克兰语", "梵语"],
+        "fr": ["Russe", "Anglais", "Espagnol", "Espagnol mexicain", "Hindi", "Arabe", "Chinois", "Français", "Allemand", "Japonais", "Portugais", "Latin", "Ukrainien", "Sanskrit"],
+        "de": ["Russisch", "Englisch", "Spanisch", "Mexikanisches Spanisch", "Hindi", "Arabisch", "Chinesisch", "Französisch", "Deutsch", "Japanisch", "Portugiesisch", "Lateinisch", "Ukrainisch", "Sanskrit"],
+        "ja": ["ロシア語", "英語", "スペイン語", "メキシコスペイン語", "ヒンディー語", "アラビア語", "中国語", "フランス語", "ドイツ語", "日本語", "ポルトガル語", "ラテン語", "ウクライナ語", "サンスクリット"],
+        "pt": ["Russo", "Inglês", "Espanhol", "Espanhol mexicano", "Hindi", "Árabe", "Chinês", "Francês", "Alemão", "Japonês", "Português", "Latim", "Ucraniano", "Sânscrito"],
+        "la": ["Russica", "Anglica", "Hispanica", "Hispanica Mexicana", "Hindi", "Arabica", "Sinica", "Gallica", "Germanica", "Iaponica", "Lusitanica", "Latina", "Ucrainica", "Sanskrita"],
+        "uk": ["Російська", "Англійська", "Іспанська", "Мексиканська іспанська", "Хінді", "Арабська", "Китайська", "Французька", "Німецька", "Японська", "Португальська", "Латинська", "Українська", "Санскрит"],
+        "sa": ["रूसी", "अङ्ग्लभाषा", "स्पेनीयभाषा", "मेक्सिकनस्पेनीयभाषा", "हिन्दी", "अरबी", "चीनी", "फ्रान्सीसी", "जर्मनी", "जापानी", "पुर्तगाली", "लैटिनी", "यूक्रेनी", "संस्कृतम्"]
+    }
+
+
+translations = {
+    "ru": {
+        "welcome_message": "Добро пожаловать в игру Крестики-Нолики!", 
+        "main_menu": "Главное меню:\n1. Классическая игра\n2. Игрок против ИИ\n3. ИИ против игрока\n4. ИИ против ИИ\n5. Настройки\n6. Выход", 
+        "choose_option": "Выберите опцию: ", 
+        "invalid_input": "Неверный ввод, попробуйте снова.", 
+        "settings_title": "Настройки:", 
+        "menu_logs": "1. Переключить логи (текущее состояние: {status})", 
+        "menu_train": "2. Обучить ИИ (память: {status})", 
+        "menu_reset_ai": "3. Сбросить память ИИ", 
+        "menu_show_stats": "4. Показать статистику", 
+        "menu_reset_stats": "5. Сбросить статистику", 
+        "menu_difficulty": "6. Выбрать сложность", 
+        "menu_training_display": "7. Режим отображения обучения", 
+        "menu_training_opponent": "8. Выбрать противника для обучения", 
+        "menu_ai_delay": "9. Задержка хода ИИ", 
+        "menu_change_lang": "10. Сменить язык", 
+        "menu_exit": "11. Выход", 
+        "logs_enabled": "включены", 
+        "logs_disabled": "выключены", 
+        "logs_toggled_on": "Логи включены.", 
+        "logs_toggled_off": "Логи выключены.", 
+        "memory_exists": "существует", 
+        "memory_empty": "пуста", 
+        "press_enter": "Нажмите Enter для продолжения...", 
+        "training_reset": "Память ИИ и игрока сброшена.", 
+        "training_started": "Обучение начато (игр: {games}).", 
+        "training_game_info": "Игра {game}: {player1} против {player2}", 
+        "training_board_display": "Игра {game}, {player} ходит на позицию {move}:", 
+        "training_progress": "Прогресс: {current}/{total} игр", 
+        "training_stats": "Промежуточные результаты: Победы: {wins}, Поражения: {losses}, Ничьи: {draws}", 
+        "training_finished": "Обучение завершено.", 
+        "stats_display": "Статистика:\nИИ: Победы: {ai_wins}, Поражения: {ai_losses}, Ничьи: {ai_draws}\nИгрок: Победы: {human_wins}, Поражения: {human_losses}, Ничьи: {human_draws}\nПротивник: Победы: {opponent_wins}, Поражения: {opponent_losses}, Ничьи: {opponent_draws}", 
+        "stats_reset": "Статистика сброшена.", "choose_difficulty": "Выберите сложность (легкая, средняя, сложная): ", 
+        "invalid_difficulty": "Неверная сложность. Доступны: легкая, средняя, сложная.", 
+        "difficulty_set": "Сложность установлена: {difficulty}.", 
+        "training_display_prompt": "Выберите режим отображения обучения (выключен, минимальный, подробный): ", 
+        "invalid_display_mode": "Неверный режим. Доступны: выключен, минимальный, подробный.", 
+        "display_mode_set": "Режим отображения обучения установлен: {mode}.", 
+        "training_opponent_prompt": "Выберите противника для обучения (ИИ, случайный): ", 
+        "invalid_opponent": "Неверный противник. Доступны: ИИ, случайный.", 
+        "opponent_set": "Противник для обучения установлен: {opponent}.", 
+        "ai_delay_prompt": "Введите задержку хода ИИ (в секундах, 0-5): ", 
+        "invalid_delay": "Неверная задержка. Введите число от 0 до 5.", 
+        "delay_set": "Задержка установлена: {delay} секунд.", 
+        "language_prompt": "Выберите язык: ", 
+        "invalid_language": "Нет такого языка.", 
+        "language_set": "Язык установлен: {language}.", 
+        "settings_exit": "Выход из настроек.", 
+        "game_start": "Игра начинается! Вы играете за {player}", 
+        "invalid_move": "Неверный ход. Попробуйте снова.", 
+        "ai_move": "ИИ ({player}) ходит на позицию {move}.", 
+        "player_wins": "{player} побеждает!", 
+        "draw": "Ничья!", 
+        "play_again": "Сыграть еще раз? [y/n]: ", 
+        "game_exit": "Игра окончена.", 
+        "ai_vs_ai_start": "Игра ИИ против ИИ начинается!", 
+        "ai_wins": "ИИ ({player}) побеждает!", 
+        "set_difficulty_before_game": "Выберите сложность: ", 
+        "reset_prompt": "Сбросить? [y/n]: "
+    },
+    "en": {
+        "welcome_message": "Welcome to Tic-Tac-Toe!",
+        "main_menu": "Main Menu:\n1. Classic Game\n2. Player vs. AI\n3. AI vs. Player\n4. AI vs. AI\n5. Settings\n6. Exit",
+        "choose_option": "Choose an option: ",
+        "invalid_input": "Invalid input, try again.",
+        "settings_title": "Settings:",
+        "menu_logs": "1. Toggle Logs (currently {status})",
+        "menu_train" : "2. Train AI (memory {status})",
+        "menu_reset_ai" : "3. Reset AI Memory",
+        "menu_show_stats": "4. Show Statistics",
+        "menu_reset_stats": "5. Reset Statistics",
+        "menu_difficulty": "6. Choose Difficulty",
+        "menu_training_display": "7. Training Display Mode",
+        "menu_training_opponent": "8. Choose Training Opponent",
+        "menu_ai_delay": "9. AI Move Delay",
+        "menu_change_lang": "10. Change Language",
+        "menu_exit": "11. Exit",
+        "logs_enabled": "on",
+        "logs_disabled": "off",
+        "logs_toggled_on": "Logs enabled.",
+        "logs_toggled_off": "Logs disabled.",
+        "memory_exists": "exists",
+        "memory_empty": "empty",
+        "press_enter": "Press Enter to continue...",
+        "training_reset": "AI and human memory reset.",
+        "training_started": "Training started (games: {games}).",
+        "training_game_info": "Game {game}: {player1} vs {player2}",
+        "training_board_display": "Game {game}, {player} moves to position {move}:",
+        "training_progress": "Progress: {current}/{total} games",
+        "training_stats": "Interim results: Wins: {wins}, Losses: {losses}, Draws: {draws}",
+        "training_finished": "Training completed.",
+        "stats_display": "Statistics:\nAI: Wins: {ai_wins}, Losses: {ai_losses}, Draws: {ai_draws}\nHuman: Wins: {human_wins}, Losses: {human_losses}, Draws: {human_draws}\nOpponent: Wins: {opponent_wins}, Losses: {opponent_losses}, Draws: {opponent_draws}",
+        "stats_reset": "Statistics reset.",
+        "choose_difficulty": "Choose difficulty (easy, medium, hard): ",
+        "invalid_difficulty": "Invalid difficulty. Available: easy, medium, hard.",
+        "difficulty_set": "Difficulty set to: {difficulty}.",
+        "training_display_prompt": "Choose training display mode (off, minimal, detailed): ",
+        "invalid_display_mode": "Invalid mode. Available: off, minimal, detailed.",
+        "display_mode_set": "Training display mode set to: {mode}.",
+        "training_opponent_prompt": "Choose training opponent (ai, random): ",
+        "invalid_opponent": "Invalid opponent. Available: ai, random.",
+        "opponent_set": "Training opponent set to: {opponent}.",
+        "ai_delay_prompt": "Enter AI move delay (in seconds, 0-5): ",
+        "invalid_delay": "Invalid delay. Enter a number between 0 and 5.",
+        "delay_set": "Delay set to: {delay} seconds.",
+        "language_prompt": "Choose language (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "Invalid language. Available: ru, en, es, hi, ar, zh, fr, de, ja, pt.",
+        "language_set": "Language set to: {language}.",
+        "settings_exit": "Exiting settings.",
+        "game_start": "Game starts! You are {player}",
+        "invalid_move": "Invalid move. Try again.",
+        "ai_move": "AI ({player}) moves to position {move}.",
+        "player_wins": "{player} wins!",
+        "draw": "It's a draw!",
+        "play_again": "Play again? [y/n]: ",
+        "game_exit": "Game over.",
+        "ai_vs_ai_start": "AI vs AI game starts!",
+        "ai_wins": "AI ({player}) wins!",
+        "set_difficulty_before_game": "Choose difficulty: ",
+        "reset_prompt": "Reset? [y/n]: "
+
+    },
+    "es": {
+        "welcome_message": "¡Bienvenido a Tres en Raya!",
+        "main_menu": "Menú Principal:\n1. Juego Clásico\n2. IA contra IA\n3. Configuraciones\n4. Salir",
+        "choose_option": "Elige una opción: ",
+        "invalid_input": "Entrada inválida, intenta de nuevo.",
+        "settings_title": "Configuraciones:",
+        "menu_logs": "1. Activar/Desactivar Registros (actualmente {status})",
+        "menu_train": "2. Entrenar IA (memoria {status})",
+        "menu_reset_ai": "3. Restablecer Memoria de IA",
+        "menu_show_stats": "4. Mostrar Estadísticas",
+        "menu_reset_stats": "5. Reiniciar Estadísticas",
+        "menu_difficulty": "6. Elegir Dificultad",
+        "menu_training_display": "7. Modo de Visualización de Entrenamiento",
+        "menu_training_opponent": "8. Elegir Oponente de Entrenamiento",
+        "menu_ai_delay": "9. Retraso de Movimiento de IA",
+        "menu_change_lang": "10. Cambiar Idioma",
+        "menu_exit": "11. Salir",
+        "logs_enabled": "activado",
+        "logs_disabled": "desactivado",
+        "logs_toggled_on": "Registros activados.",
+        "logs_toggled_off": "Registros desactivados.",
+        "memory_exists": "existe",
+        "memory_empty": "vacía",
+        "press_enter": "Presiona Enter para continuar...",
+        "training_reset": "Memoria de IA y humana reiniciada.",
+        "training_started": "Entrenamiento iniciado (juegos: {games}).",
+        "training_game_info": "Juego {game}: {player1} vs {player2}",
+        "training_board_display": "Juego {game}, {player} mueve a la posición {move}:",
+        "training_progress": "Progreso: {current}/{total} juegos",
+        "training_stats": "Resultados intermedios: Victorias: {wins}, Derrotas: {losses}, Empates: {draws}",
+        "training_finished": "Entrenamiento completado.",
+        "stats_display": "Estadísticas:\nIA: Victorias: {ai_wins}, Derrotas: {ai_losses}, Empates: {ai_draws}\nHumano: Victorias: {human_wins}, Derrotas: {human_losses}, Empates: {human_draws}\nOponente: Victorias: {opponent_wins}, Derrotas: {opponent_losses}, Empates: {opponent_draws}",
+        "stats_reset": "Estadísticas reiniciadas.",
+        "choose_difficulty": "Elige dificultad (easy, medium, hard): ",
+        "invalid_difficulty": "Dificultad inválida. Disponibles: easy, medium, hard.",
+        "difficulty_set": "Dificultad establecida en: {difficulty}.",
+        "training_display_prompt": "Elige modo de visualización de entrenamiento (off, minimal, detailed): ",
+        "invalid_display_mode": "Modo inválido. Disponibles: off, minimal, detailed.",
+        "display_mode_set": "Modo de visualización de entrenamiento establecido en: {mode}.",
+        "training_opponent_prompt": "Elige oponente de entrenamiento (ai, random): ",
+        "invalid_opponent": "Oponente inválido. Disponibles: ai, random.",
+        "opponent_set": "Oponente de entrenamiento establecido en: {opponent}.",
+        "ai_delay_prompt": "Ingresa el retraso de movimiento de IA (en segundos, 0-5): ",
+        "invalid_delay": "Retraso inválido. Ingresa un número entre 0 y 5.",
+        "delay_set": "Retraso establecido en: {delay} segundos.",
+        "language_prompt": "Elige idioma (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "Idioma inválido. Disponibles: ru, en, es, hi, ar, zh, fr, de, ja, pt.",
+        "language_set": "Idioma establecido en: {language}.",
+        "settings_exit": "Saliendo de configuraciones.",
+        "game_start": "¡El juego comienza! Tú eres {player}",
+        "invalid_move": "Movimiento inválido. Intenta de nuevo.",
+        "ai_move": "IA ({player}) mueve a la posición {move}.",
+        "player_wins": "{player} gana!",
+        "draw": "¡Es un empate!",
+        "play_again": "¿Jugar de nuevo? [s/n]: ",
+        "game_exit": "Juego terminado.",
+        "ai_vs_ai_start": "¡Comienza el juego IA contra IA!",
+        "ai_wins": "¡IA ({player}) gana!",
+        "set_difficulty_before_game": "Elige dificultad: ",
+        "reset_prompt": "¿Restablecer? [s/n]: "
+    },
+    "hi": {
+        "welcome_message": "टिक-टैक-टो में आपका स्वागत है!",
+        "main_menu": "मुख्य मेनू:\n1. क्लासिक गेम\n2. AI बनाम AI\n3. सेटिंग्स\n4. बाहर निकलें",
+        "choose_option": "एक विकल्प चुनें: ",
+        "invalid_input": "अमान्य इनपुट, फिर से कोशिश करें।",
+        "settings_title": "सेटिंग्स:",
+        "menu_logs": "1. लॉग्स चालू/बंद करें (वर्तमान में {status})",
+        "menu_train": "2. AI को प्रशिक्षित करें (मेमोरी {status})",
+        "menu_reset_ai": "3. AI मेमोरी रीसेट करें",
+        "menu_show_stats": "4. आँकड़े दिखाएँ",
+        "menu_reset_stats": "5. आँकड़े रीसेट करें",
+        "menu_difficulty": "6. कठिनाई चुनें",
+        "menu_training_display": "7. प्रशिक्षण प्रदर्शन मोड",
+        "menu_training_opponent": "8. प्रशिक्षण प्रतिद्वंद्वी चुनें",
+        "menu_ai_delay": "9. AI चाल देरी",
+        "menu_change_lang": "10. भाषा बदलें",
+        "menu_exit": "11. बाहर निकलें",
+        "logs_enabled": "चालू",
+        "logs_disabled": "बंद",
+        "logs_toggled_on": "लॉग्स चालू कर दिए गए हैं।",
+        "logs_toggled_off": "लॉग्स बंद कर दिए गए हैं।",
+        "memory_exists": "मौजूद है",
+        "memory_empty": "खाली",
+        "press_enter": "जारी रखने के लिए Enter दबाएँ...",
+        "training_reset": "AI और मानव मेमोरी रीसेट कर दी गई।",
+        "training_started": "प्रशिक्षण शुरू (गेम्स: {games})।",
+        "training_game_info": "गेम {game}: {player1} बनाम {player2}",
+        "training_board_display": "गेम {game}, {player} स्थिति {move} पर चाल चलता है:",
+        "training_progress": "प्रगति: {current}/{total} गेम्स",
+        "training_stats": "मध्यवर्ती परिणाम: जीत: {wins}, हार: {losses}, ड्रॉ: {draws}",
+        "training_finished": "प्रशिक्षण पूरा हुआ।",
+        "stats_display": "आँकड़े:\nAI: जीत: {ai_wins}, हार: {ai_losses}, ड्रॉ: {ai_draws}\nमानव: जीत: {human_wins}, हार: {human_losses}, ड्रॉ: {human_draws}\nप्रतिद्वंद्वी: जीत: {opponent_wins}, हार: {opponent_losses}, ड्रॉ: {opponent_draws}",
+        "stats_reset": "आँकड़े रीसेट कर दिए गए।",
+        "choose_difficulty": "कठिनाई चुनें (easy, medium, hard): ",
+        "invalid_difficulty": "अमान्य कठिनाई। उपलब्ध: easy, medium, hard।",
+        "difficulty_set": "कठिनाई सेट: {difficulty}।",
+        "training_display_prompt": "प्रशिक्षण प्रदर्शन मोड चुनें (off, minimal, detailed): ",
+        "invalid_display_mode": "अमान्य मोड। उपलब्ध: off, minimal, detailed।",
+        "display_mode_set": "प्रशिक्षण प्रदर्शन मोड सेट: {mode}।",
+        "training_opponent_prompt": "प्रशिक्षण प्रतिद्वंद्वी चुनें (ai, random): ",
+        "invalid_opponent": "अमान्य प्रतिद्वंद्वी। उपलब्ध: ai, random।",
+        "opponent_set": "प्रशिक्षण प्रतिद्वंद्वी सेट: {opponent}।",
+        "ai_delay_prompt": "AI चाल देरी दर्ज करें (सेकंड में, 0-5): ",
+        "invalid_delay": "अमान्य देरी। 0 से 5 के बीच एक संख्या दर्ज करें।",
+        "delay_set": "देरी सेट: {delay} सेकंड।",
+        "language_prompt": "भाषा चुनें (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "अमान्य भाषा। उपलब्ध: ru, en, es, hi, ar, zh, fr, de, ja, pt।",
+        "language_set": "भाषा सेट: {language}।",
+        "settings_exit": "सेटिंग्स से बाहर निकल रहे हैं।",
+        "game_start": "गेम शुरू! आप {player} हैं",
+        "invalid_move": "अमान्य चाल। फिर से कोशिश करें।",
+        "ai_move": "AI ({player}) स्थिति {move} पर चाल चलता है।",
+        "player_wins": "{player} जीत गया!",
+        "draw": "यह ड्रॉ है!",
+        "play_again": "फिर से खेलें? [y/n]: ",
+        "game_exit": "गेम खत्म।",
+        "ai_vs_ai_start": "AI बनाम AI गेम शुरू!",
+        "ai_wins": "AI ({player}) जीत गया!",
+        "set_difficulty_before_game": "कठिनाई चुनें: ",
+        "reset_prompt": "रीसेट करें? [y/n]: "
+    },
+    "ar": {
+        "welcome_message": "مرحبًا بلعبة تيك تاك تو!",
+        "main_menu": "القائمة الرئيسية:\n1. لعبة كلاسيكية\n2. الذكاء الاصطناعي ضد الذكاء الاصطناعي\n3. الإعدادات\n4. الخروج",
+        "choose_option": "اختر خيارًا: ",
+        "invalid_input": "إدخال غير صالح، حاول مرة أخرى.",
+        "settings_title": "الإعدادات:",
+        "menu_logs": "1. تفعيل/تعطيل السجلات (حاليًا {status})",
+        "menu_train": "2. تدريب الذكاء الاصطناعي (الذاكرة {status})",
+        "menu_reset_ai": "3. إعادة تعيين ذاكرة الذكاء الاصطناعي",
+        "menu_show_stats": "4. عرض الإحصائيات",
+        "menu_reset_stats": "5. إعادة تعيين الإحصائيات",
+        "menu_difficulty": "6. اختيار مستوى الصعوبة",
+        "menu_training_display": "7. وضع عرض التدريب",
+        "menu_training_opponent": "8. اختيار خصم التدريب",
+        "menu_ai_delay": "9. تأخير حركة الذكاء الاصطناعي",
+        "menu_change_lang": "10. تغيير اللغة",
+        "menu_exit": "11. الخروج",
+        "logs_enabled": "مفعل",
+        "logs_disabled": "معطل",
+        "logs_toggled_on": "تم تفعيل السجلات.",
+        "logs_toggled_off": "تم تعطيل السجلات.",
+        "memory_exists": "موجودة",
+        "memory_empty": "فارغة",
+        "press_enter": "اضغط على Enter للمتابعة...",
+        "training_reset": "تم إعادة تعيين ذاكرة الذكاء الاصطناعي والإنسان.",
+        "training_started": "بدأ التدريب (الألعاب: {games}).",
+        "training_game_info": "اللعبة {game}: {player1} ضد {player2}",
+        "training_board_display": "اللعبة {game}، {player} يتحرك إلى الموقع {move}:",
+        "training_progress": "التقدم: {current}/{total} ألعاب",
+        "training_stats": "النتائج المؤقتة: انتصارات: {wins}، هزائم: {losses}، تعادلات: {draws}",
+        "training_finished": "اكتمل التدريب.",
+        "stats_display": "الإحصائيات:\nالذكاء الاصطناعي: انتصارات: {ai_wins}، هزائم: {ai_losses}، تعادلات: {ai_draws}\nالإنسان: انتصارات: {human_wins}، هزائم: {human_losses}، تعادلات: {human_draws}\nالخصم: انتصارات: {opponent_wins}، هزائم: {opponent_losses}، تعادلات: {opponent_draws}",
+        "stats_reset": "تم إعادة تعيين الإحصائيات.",
+        "choose_difficulty": "اختر مستوى الصعوبة (سهل، متوسط، صعب): ",
+        "invalid_difficulty": "صعوبة غير صالحة. المتاح: سهل، متوسط، صعب.",
+        "difficulty_set": "تم تحديد مستوى الصعوبة: {difficulty}.",
+        "training_display_prompt": "اختر وضع عرض التدريب (معطل، أدنى، مفصل): ",
+        "invalid_display_mode": "وضع غير صالح. المتاح: معطل، أدنى، مفصل.",
+        "display_mode_set": "تم تحديد وضع عرض التدريب: {mode}.",
+        "training_opponent_prompt": "اختر خصم التدريب (ذكاء اصطناعي، عشوائي): ",
+        "invalid_opponent": "خصم غير صالح. المتاح: ذكاء اصطناعي، عشوائي.",
+        "opponent_set": "تم تحديد خصم التدريب: {opponent}.",
+        "ai_delay_prompt": "أدخل تأخير حركة الذكاء الاصطناعي (بالثواني، 0-5): ",
+        "invalid_delay": "تأخير غير صالح. أدخل رقمًا بين 0 و 5.",
+        "delay_set": "تم تحديد التأخير: {delay} ثوانٍ.",
+        "language_prompt": "اختر اللغة (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "لغة غير صالحة. المتاح: ru, en, es, hi, ar, zh, fr, de, ja, pt.",
+        "language_set": "تم تحديد اللغة: {language}.",
+        "settings_exit": "الخروج من الإعدادات.",
+        "game_start": "بدأت اللعبة! أنت {player}",
+        "invalid_move": "حركة غير صالحة. حاول مرة أخرى.",
+        "ai_move": "الذكاء الاصطناعي ({player}) يتحرك إلى الموقع {move}.",
+        "player_wins": "{player} يفوز!",
+        "draw": "إنه تعادل!",
+        "play_again": "هل تريد اللعب مرة أخرى؟ [نعم/لا]: ",
+        "game_exit": "انتهت اللعبة.",
+        "ai_vs_ai_start": "بدأت لعبة الذكاء الاصطناعي ضد الذكاء الاصطناعي!",
+        "ai_wins": "الذكاء الاصطناعي ({player}) يفوز!",
+        "set_difficulty_before_game": "اختر مستوى الصعوبة: ",
+        "reset_prompt": "إعادة تعيين؟ [نعم/لا]: "
+    },
+    "zh": {
+        "welcome_message": "欢迎体验井字游戏！",
+        "main_menu": "主菜单:\n1. 经典游戏\n2. AI对AI\n3. 设置\n4. 退出",
+        "choose_option": "选择一个选项: ",
+        "invalid_input": "输入无效，请重试。",
+        "settings_title": "设置:",
+        "menu_logs": "1. 启用/禁用日志 (当前 {status})",
+        "menu_train": "2. 训练AI (内存 {status})",
+        "menu_reset_ai": "3. 重置AI内存",
+        "menu_show_stats": "4. 显示统计",
+        "menu_reset_stats": "5. 重置统计",
+        "menu_difficulty": "6. 选择难度",
+        "menu_training_display": "7. 训练显示模式",
+        "menu_training_opponent": "8. 选择训练对手",
+        "menu_ai_delay": "9. AI移动延迟",
+        "menu_change_lang": "10. 更改语言",
+        "menu_exit": "11. 退出",
+        "logs_enabled": "启用",
+        "logs_disabled": "禁用",
+        "logs_toggled_on": "日志已启用。",
+        "logs_toggled_off": "日志已禁用。",
+        "memory_exists": "存在",
+        "memory_empty": "为空",
+        "press_enter": "按Enter继续...",
+        "training_reset": "AI和人类内存已重置。",
+        "training_started": "训练开始 (游戏数: {games})。",
+        "training_game_info": "游戏 {game}: {player1} 对 {player2}",
+        "training_board_display": "游戏 {game}，{player} 移动到位置 {move}:",
+        "training_progress": "进度: {current}/{total} 游戏",
+        "training_stats": "中间结果: 胜利: {wins}, 失败: {losses}, 平局: {draws}",
+        "training_finished": "训练完成。",
+        "stats_display": "统计:\nAI: 胜利: {ai_wins}, 失败: {ai_losses}, 平局: {ai_draws}\n人类: 胜利: {human_wins}, 失败: {human_losses}, 平局: {human_draws}\n对手: 胜利: {opponent_wins}, 失败: {opponent_losses}, 平局: {opponent_draws}",
+        "stats_reset": "统计已重置。",
+        "choose_difficulty": "选择难度 (简单, 中等, 困难): ",
+        "invalid_difficulty": "难度无效。可用: 简单, 中等, 困难。",
+        "difficulty_set": "难度设置为: {difficulty}。",
+        "training_display_prompt": "选择训练显示模式 (关闭, 最小, 详细): ",
+        "invalid_display_mode": "模式无效。可用: 关闭, 最小, 详细。",
+        "display_mode_set": "训练显示模式设置为: {mode}。",
+        "training_opponent_prompt": "选择训练对手 (AI, 随机): ",
+        "invalid_opponent": "对手无效。可用: AI, 随机。",
+        "opponent_set": "训练对手设置为: {opponent}。",
+        "ai_delay_prompt": "输入AI移动延迟 (秒, 0-5): ",
+        "invalid_delay": "延迟无效。请输入0到5之间的数字。",
+        "delay_set": "延迟设置为: {delay} 秒。",
+        "language_prompt": "选择语言 (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "语言无效。可用: ru, en, es, hi, ar, zh, fr, de, ja, pt。",
+        "language_set": "语言设置为: {language}。",
+        "settings_exit": "退出设置。",
+        "game_start": "游戏开始！你是 {player}",
+        "invalid_move": "移动无效。 请重试。",
+        "ai_move": "AI ({player}) 移动到位置 {move}。",
+        "player_wins": "{player} 获胜！",
+        "draw": "平局！",
+        "play_again": "再玩一次？[y/n]: ",
+        "game_exit": "游戏结束。",
+        "player1_move": "玩家 1 (X) 移动 (1-9): ",
+        "player2_move": "玩家 2 (O) 移动 (1-9): ",
+        "ai_vs_ai_start": "AI 对 AI 游戏开始！",
+        "ai_wins": "AI ({player}) 获胜！",
+        "set_difficulty_before_game": "选择难度: ",
+        "reset_prompt": "重置？[y/n]: "
+    },
+    "sa": {
+        "welcome_message": "स्वागतं त्रिकं-त्रिकं-नालिकायां!",
+        "main_menu": "प्रधानसूची:\n१. पारम्परिकं क्रीडा\n२. कृत्रिमबुद्धिः कृत्रिमबुद्ध्या संनादति\n३. संन्यासः\n४. निर्गमनम्",
+        "choose_option": "विकल्पं संनादति: ",
+        "invalid_input": "अमान्यं निवेशः, पुनः प्रयत्नति।",
+        "settings_title": "संन्यासः:",
+        "menu_logs": "१. लेखनं प्रचालति/निष्क्रियति (वर्तमानं {status})",
+        "menu_train": "२. कृत्रिमबुद्धिं शिक्षति (स्मृतिः {status})",
+        "menu_reset_ai": "३. कृत्रिमबुद्धेः स्मृतिं पुनःसंस्थापति",
+        "menu_show_stats": "४. सांख्यिकीं दर्शति",
+        "menu_reset_stats": "५. सांख्यिकीं पुनःसंस्थापति",
+        "menu_difficulty": "६. कठिनतां संनादति",
+        "menu_training_display": "७. शिक्षणप्रदर्शनप्रकारः",
+        "menu_training_opponent": "८. शिक्षणप्रतिद्वन्द्विनं संनादति",
+        "menu_ai_delay": "९. कृत्रिमबुद्धेः चालविलम्बः",
+        "menu_change_lang": "१०. भाषां परिवर्तति",
+        "menu_exit": "११. निर्गमनम्",
+        "logs_enabled": "प्रचालितम्",
+        "logs_disabled": "निष्क्रियम्",
+        "logs_toggled_on": "लेखनं प्रचालितम्।",
+        "logs_toggled_off": "लेखनं निष्क्रियम्।",
+        "memory_exists": "अस्ति",
+        "memory_empty": "शून्यम्",
+        "press_enter": "प्रवेशपत्रं संनादति यथा संनादति...",
+        "training_reset": "कृत्रिमबुद्धेः मानवस्य च स्मृतिः पुनःसंस्थापिता।",
+        "training_started": "शिक्षणं प्रारब्धम् (क्रीडाः {games})।",
+        "training_game_info": "क्रीडा {game}: {player1} संनादति {player2}",
+        "training_board_display": "क्रीडा {game}, {player} स्थानं {move} प्रति चालति:",
+        "training_progress": "प्रगतिः: {current}/{total} क्रीडाः",
+        "training_stats": "मध्यवर्ती फलानि: जयः {wins}, पराजयः {losses}, समता {draws}",
+        "training_finished": "शिक्षणं समाप्तम्।",
+        "stats_display": "सांख्यिकी:\nकृत्रिमबुद्धिः: जयः {ai_wins}, पराजयः {ai_losses}, समता {ai_draws}\nमानवः: जयः {human_wins}, पराजयः {human_losses}, समता {human_draws}\nप्रतिद्वन्द्वी: जयः {opponent_wins}, पराजयः {opponent_losses}, समता {opponent_draws}",
+        "stats_reset": "सांख्यिकी पुनःसंस्थापिता।",
+        "choose_difficulty": "कठिनतां संनादति (सौकर्यम्, मध्यमम्, कठिनम्): ",
+        "invalid_difficulty": "अमान्या कठिनता। उपलब्धं: सौकर्यम्, मध्यमम्, कठिनम्।",
+        "difficulty_set": "कठिनता संनादिता: {difficulty}।",
+        "training_display_prompt": "शिक्षणप्रदर्शनप्रकारं संनादति (निष्क्रियम्, न्यूनतमम्, विस्तृतम्): ",
+        "invalid_display_mode": "अमान्यः प्रकारः। उपलब्धं: निष्क्रियम्, न्यूनतमम्, विस्तृतम्।",
+        "display_mode_set": "शिक्षणप्रदर्शनप्रकारः संनादितः: {mode}।",
+        "training_opponent_prompt": "शिक्षणप्रतिद्वन्द्विनं संनादति (कृत्रिमबुद्धिः, यदृच्छया): ",
+        "invalid_opponent": "अमान्यः प्रतिद्वन्द्वी। उपलब्धं: कृत्रिमबुद्धिः, यदृच्छया।",
+        "opponent_set": "शिक्षणप्रतिद्वन्द्वी संनादितः: {opponent}।",
+        "ai_delay": "कृत्रिमबुद्धेः चालविलम्बं निवेशति (सेकण्डेषु, ०-५): ",
+        "invalid_delay": "अमान्यः विलम्बः। ० तः ५ पर्यन्तं संख्यां निवेशति।",
+        "delay_set": "विलम्बः संनादितः: {delay} सेकण्डानि।",
+        "language_prompt": "भाषां संनादति (ru, en, es, hi, ar, zh, fr, de, ja, pt, la): ",
+        "invalid_language": "अमान्या भाषा। उपलब्धं: ru, en, es, hi, ar, zh, fr, de, ja, pt, la।",
+        "language_set": "भाषा संनादिता: {language}।",
+        "settings_exit": "संन्यासात् निर्गमनम्।",
+        "game_start": "क्रीडा प्रारभति! त्वं {player} असि",
+        "invalid_move": "अमान्यः चालः। पुनः प्रयत्नति।",
+        "ai_move": "कृत्रिमबुद्धिः ({player}) स्थानं {move} प्रति चालति।",
+        "player_wins": "{player} जयति!",
+        "draw": "समता!",
+        "play_again": "पुनः क्रीडति? [ह/न]: ",
+        "game_exit": "क्रीडा समाप्ता।",
+        "ai_vs_ai_start": "कृत्रिमबुद्धिः कृत्रिमबुद्ध्या संनादति क्रीडा प्रारभति!",
+        "ai_wins": "कृत्रिमबुद्धिः ({player}) जयति!",
+        "set_difficulty_before_game": "कठिनतां संनादति: ",
+        "reset_prompt": "पुनःसंस्थापति? [ह/न]: "
+    },
+    "fr": {
+        "welcome_message": "Bienvenue dans le jeu de Morpion !",
+        "main_menu": "Menu principal :\n1. Jeu classique\n2. IA contre IA\n3. Paramètres\n4. Quitter",
+        "choose_option": "Choisissez une option : ",
+        "invalid_input": "Entrée invalide, veuillez réessayer.",
+        "settings_title": "Paramètres :",
+        "menu_logs": "1. Activer/Désactiver les journaux (actuellement {status})",
+        "menu_train": "2. Entraîner l'IA (mémoire {status})",
+        "menu_reset_ai": "3. Réinitialiser la mémoire de l'IA",
+        "menu_show_stats": "4. Afficher les statistiques",
+        "menu_reset_stats": "5. Réinitialiser les statistiques",
+        "menu_difficulty": "6. Choisir la difficulté",
+        "menu_training_display": "7. Mode d'affichage de l'entraînement",
+        "menu_training_opponent": "8. Choisir l'adversaire d'entraînement",
+        "menu_ai_delay": "9. Délai de mouvement de l'IA",
+        "menu_change_lang": "10. Changer la langue",
+        "menu_exit": "11. Quitter",
+        "logs_enabled": "activé",
+        "logs_disabled": "désactivé",
+        "logs_toggled_on": "Journaux activés.",
+        "logs_toggled_off": "Journaux désactivés.",
+        "memory_exists": "existe",
+        "memory_empty": "vide",
+        "press_enter": "Appuyez sur Entrée pour continuer...",
+        "training_reset": "Mémoire de l'IA et du joueur réinitialisée.",
+        "training_started": "Entraînement commencé (jeux : {games}).",
+        "training_game_info": "Jeu {game} : {player1} contre {player2}",
+        "training_board_display": "Jeu {game}, {player} joue à la position {move} :",
+        "training_progress": "Progrès : {current}/{total} jeux",
+        "training_stats": "Résultats intermédiaires : Victoires : {wins}, Défaites : {losses}, Nuls : {draws}",
+        "training_finished": "Entraînement terminé.",
+        "stats_display": "Statistiques :\nIA : Victoires : {ai_wins}, Défaites : {ai_losses}, Nuls : {ai_draws}\nHumain : Victoires : {human_wins}, Défaites : {human_losses}, Nuls : {human_draws}\nAdversaire : Victoires : {opponent_wins}, Défaites : {opponent_losses}, Nuls : {opponent_draws}",
+        "stats_reset": "Statistiques réinitialisées.",
+        "choose_difficulty": "Choisissez la difficulté (facile, moyen, difficile): ",
+        "invalid_difficulty": "Difficulté invalide. Options disponibles : facile, moyen, difficile.",
+        "difficulty_set": "Difficulté définie à : {difficulty}.",
+        "training_display_prompt": "Choisissez le mode d'affichage de l'entraînement (désactivé, minimal, détaillé): ",
+        "invalid_display_mode": "Mode invalide. Options disponibles : désactivé, minimal, détaillé.",
+        "display_mode_set": "Mode d'affichage de l'entraînement défini à : {mode}.",
+        "training_opponent_prompt": "Choisissez l'adversaire d'entraînement (ia, aléatoire) : ",
+        "invalid_opponent": "Adversaire invalide. Options disponibles : ia, aléatoire.",
+        "opponent_set": "Adversaire d'entraînement défini à : {opponent}.",
+        "ai_delay_prompt": "Entrez le délai de mouvement de l'IA (en secondes, 0-5): ",
+        "invalid_delay": "Délai invalide. Entrez un nombre entre 0 et 5.",
+        "delay_set": "Délai défini à : {delay} secondes.",
+        "language_prompt": "Choisissez la langue (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "Langue invalide. Options disponibles : ru, en, es, hi, ar, zh, fr, de, ja, pt.",
+        "language_set": "Langue définie à : {language}.",
+        "settings_exit": "Sortie des paramètres.",
+        "game_start": "Le jeu commence ! Vous êtes {player}",
+        "invalid_move": "Mouvement invalide. Réessayez.",
+        "ai_move": "L'IA ({player}) joue à la position {move}.",
+        "player_wins": "{player} gagne !",
+        "draw": "Match nul !",
+        "play_again": "Rejouer ? [o/n] : ",
+        "game_exit": "Jeu terminé.",
+        "ai_vs_ai_start": "Le jeu IA contre IA commence !",
+        "ai_wins": "L'IA ({player}) gagne !",
+        "set_difficulty_before_game": "Choisissez la difficulté: ",
+        "reset_prompt": "Réinitialiser ? [o/n]: "
+    },
+    "de": {
+        "welcome_message": "Willkommen zu Tic-Tac-Toe!",
+        "main_menu": "Hauptmenü:\n1. Klassisches Spiel\n2. KI gegen KI\n3. Einstellungen\n4. Beenden",
+        "choose_option": "Wählen Sie eine Option: ",
+        "invalid_input": "Ungültige Eingabe, bitte versuchen Sie es erneut.",
+        "settings_title": "Einstellungen:",
+        "menu_logs": "1. Protokolle ein-/ausschalten (derzeit {status})",
+        "menu_train": "2. KI trainieren (Speicher {status})",
+        "menu_reset_ai": "3. KI-Speicher zurücksetzen",
+        "menu_show_stats": "4. Statistiken anzeigen",
+        "menu_reset_stats": "5. Statistiken zurücksetzen",
+        "menu_difficulty": "6. Schwierigkeitsgrad wählen",
+        "menu_training_display": "7. Trainingsanzeigemodus",
+        "menu_training_opponent": "8. Trainingsgegner wählen",
+        "menu_ai_delay": "9. Verzögerung der KI-Züge",
+        "menu_change_lang": "10. Sprache ändern",
+        "menu_exit": "11. Beenden",
+        "logs_enabled": "eingeschaltet",
+        "logs_disabled": "ausgeschaltet",
+        "logs_toggled_on": "Protokolle eingeschaltet.",
+        "logs_toggled_off": "Protokolle ausgeschaltet.",
+        "memory_exists": "vorhanden",
+        "memory_empty": "leer",
+        "press_enter": "Drücken Sie Enter, um fortzufahren...",
+        "training_reset": "Speicher der KI und des Spielers zurückgesetzt.",
+        "training_started": "Training begonnen (Spiele: {games}).",
+        "training_game_info": "Spiel {game}: {player1} gegen {player2}",
+        "training_board_display": "Spiel {game}, {player} bewegt sich auf Position {move}:",
+        "training_progress": "Fortschritt: {current}/{total} Spiele",
+        "training_stats": "Zwischenergebnisse: Siege: {wins}, Niederlagen: {losses}, Unentschieden: {draws}",
+        "training_finished": "Training abgeschlossen.",
+        "stats_display": "Statistiken:\nKI: Siege: {ai_wins}, Niederlagen: {ai_losses}, Unentschieden: {ai_draws}\nMensch: Siege: {human_wins}, Niederlagen: {human_losses}, Unentschieden: {human_draws}\nGegner: Siege: {opponent_wins}, Niederlagen: {opponent_losses}, Unentschieden: {opponent_draws}",
+        "stats_reset": "Statistiken zurückgesetzt.",
+        "choose_difficulty": "Wählen Sie den Schwierigkeitsgrad (leicht, mittel, schwer): ",
+        "invalid_difficulty": "Ungültiger Schwierigkeitsgrad. Verfügbar: leicht, mittel, schwer.",
+        "difficulty_set": "Schwierigkeitsgrad auf {difficulty} gesetzt.",
+        "training_display_prompt": "Wählen Sie den Trainingsanzeigemodus (aus, minimal, detailliert): ",
+        "invalid_display_mode": "Ungültiger Modus. Verfügbar: aus, minimal, detailliert.",
+        "display_mode_set": "Trainingsanzeigemodus auf {mode} gesetzt.",
+        "training_opponent_prompt": "Wählen Sie den Trainingsgegner (ki, zufällig): ",
+        "invalid_opponent": "Ungültiger Gegner. Verfügbar: ki, zufällig.",
+        "opponent_set": "Trainingsgegner auf {opponent} gesetzt.",
+        "ai_delay_prompt": "Geben Sie die Verzögerung der KI-Züge ein (in Sekunden, 0-5): ",
+        "invalid_delay": "Ungültige Verzögerung. Geben Sie eine Zahl zwischen 0 und 5 ein.",
+        "delay_set": "Verzögerung auf {delay} Sekunden gesetzt.",
+        "language_prompt": "Wählen Sie die Sprache (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "Ungültige Sprache. Verfügbar: ru, en, es, hi, ar, zh, fr, de, ja, pt.",
+        "language_set": "Sprache auf {language} gesetzt.",
+        "settings_exit": "Einstellungen verlassen.",
+        "game_start": "Spiel beginnt! Sie sind {player}",
+        "invalid_move": "Ungültiger Zug. Versuchen Sie es erneut.",
+        "ai_move": "KI ({player}) bewegt sich auf Position {move}.",
+        "player_wins": "{player} gewinnt!",
+        "draw": "Unentschieden!",
+        "play_again": "Noch einmal spielen? [j/n]: ",
+        "game_exit": "Spiel beendet.",
+        "ai_vs_ai_start": "KI gegen KI Spiel beginnt!",
+        "ai_wins": "KI ({player}) gewinnt!",
+        "set_difficulty_before_game": "Wählen Sie den Schwierigkeitsgrad: ",
+        "reset_prompt": "Zurücksetzen? [j/n]: "
+    },
+    "ja": {
+        "welcome_message": "三目並べへようこそ！",
+        "main_menu": "メインメニュー:\n1. クラシックゲーム\n2. AI対AI\n3. 設定\n4. 終了",
+        "choose_option": "オプションを選択: ",
+        "invalid_input": "無効な入力です、もう一度試してください。",
+        "settings_title": "設定:",
+        "menu_logs": "1. ログを有効/無効にする (現在 {status})",
+        "menu_train": "2. AIを訓練する (メモリ {status})",
+        "menu_reset_ai": "3. AIメモリをリセット",
+        "menu_show_stats": "4. 統計を表示",
+        "menu_reset_stats": "5. 統計をリセット",
+        "menu_difficulty": "6. 難易度を選択",
+        "menu_training_display": "7. 訓練表示モード",
+        "menu_training_opponent": "8. 訓練相手を選択",
+        "menu_ai_delay": "9. AI移動遅延",
+        "menu_change_lang": "10. 言語を変更",
+        "menu_exit": "11. 終了",
+        "logs_enabled": "有効",
+        "logs_disabled": "無効",
+        "logs_toggled_on": "ログが有効になりました。",
+        "logs_toggled_off": "ログが無効になりました。",
+        "memory_exists": "存在",
+        "memory_empty": "空",
+        "press_enter": "Enterを押して続行...",
+        "training_reset": "AIと人間のメモリがリセットされました。",
+        "training_started": "訓練開始 (ゲーム数: {games})。",
+        "training_game_info": "ゲーム {game}: {player1} 対 {player2}",
+        "training_board_display": "ゲーム {game}、{player}が位置{move}に移動:",
+        "training_progress": "進捗: {current}/{total} ゲーム",
+        "training_stats": "中間結果: 勝利: {wins}, 敗北: {losses}, 引き分け: {draws}",
+        "training_finished": "訓練完了。",
+        "stats_display": "統計:\nAI: 勝利: {ai_wins}, 敗北: {ai_losses}, 引き分け: {ai_draws}\n人間: 勝利: {human_wins}, 敗北: {human_losses}, 引き分け: {human_draws}\n相手: 勝利: {opponent_wins}, 敗北: {opponent_losses}, 引き分け: {opponent_draws}",
+        "stats_reset": "統計がリセットされました。",
+        "choose_difficulty": "難易度を選択 (簡単, 中級, 難しい): ",
+        "invalid_difficulty": "無効な難易度。利用可能: 簡単, 中級, 難しい。",
+        "difficulty_set": "難易度を{difficulty}に設定。",
+        "training_display_prompt": "訓練表示モードを選択 (オフ, 最小, 詳細): ",
+        "invalid_display_mode": "無効なモード。利用可能: オフ, 最小, 詳細。",
+        "display_mode_set": "訓練表示モードを{mode}に設定。",
+        "training_opponent_prompt": "訓練相手を選択 (AI, ランダム): ",
+        "invalid_opponent": "無効な相手。利用可能: AI, ランダム。",
+        "opponent_set": "訓練相手を{opponent}に設定。",
+        "ai_delay_prompt": "AI移動遅延を入力 (秒, 0-5): ",
+        "invalid_delay": "無効な遅延。0から5の数字を入力してください。",
+        "delay_set": "遅延を{delay}秒に設定。",
+        "language_prompt": "言語を選択 (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "無効な言語。利用可能: ru, en, es, hi, ar, zh, fr, de, ja, pt。",
+        "language_set": "言語を{language}に設定。",
+        "settings_exit": "設定を終了。",
+        "game_start": "ゲーム開始！あなたは{player}です",
+        "invalid_move": "無効な移動です。もう一度試してください。",
+        "ai_move": "AI ({player}) が位置 {move} に移動。",
+        "player_wins": "{player} が勝利！",
+        "draw": "引き分け！",
+        "play_again": "もう一度プレイしますか？[y/n]: ",
+        "game_exit": "ゲーム終了。",
+        "ai_vs_ai_start": "AI対AIゲーム開始！",
+        "ai_wins": "AI ({player}) が勝利！",
+        "set_difficulty_before_game": "難易度を選択: ",
+        "reset_prompt": "リセットしますか？[y/n]: "
+    },
+    "pt": {
+        "welcome_message": "Bem-vindo ao Jogo da Velha!",
+        "main_menu": "Menu Principal:\n1. Jogo Clássico\n2. IA contra IA\n3. Configurações\n4. Sair",
+        "choose_option": "Escolha uma opção: ",
+        "invalid_input": "Entrada inválida, tente novamente.",
+        "settings_title": "Configurações:",
+        "menu_logs": "1. Ativar/Desativar Logs (atualmente {status})",
+        "menu_train": "2. Treinar IA (memória {status})",
+        "menu_reset_ai": "3. Redefinir Memória da IA",
+        "menu_show_stats": "4. Mostrar Estatísticas",
+        "menu_reset_stats": "5. Redefinir Estatísticas",
+        "menu_difficulty": "6. Escolher Dificuldade",
+        "menu_training_display": "7. Modo de Exibição de Treinamento",
+        "menu_training_opponent": "8. Escolher Oponente de Treinamento",
+        "menu_ai_delay": "9. Atraso de Movimento da IA",
+        "menu_change_lang": "10. Mudar Idioma",
+        "menu_exit": "11. Sair",
+        "logs_enabled": "ativado",
+        "logs_disabled": "desativado",
+        "logs_toggled_on": "Logs ativados.",
+        "logs_toggled_off": "Logs desativados.",
+        "memory_exists": "existe",
+        "memory_empty": "vazia",
+        "press_enter": "Pressione Enter para continuar...",
+        "training_reset": "Memória da IA e do jogador redefinida.",
+        "training_started": "Treinamento iniciado (jogos: {games}).",
+        "training_game_info": "Jogo {game}: {player1} vs {player2}",
+        "training_board_display": "Jogo {game}, {player} move para a posição {move}:",
+        "training_progress": "Progresso: {current}/{total} jogos",
+        "training_stats": "Resultados intermediários: Vitórias: {wins}, Derrotas: {losses}, Empates: {draws}",
+        "training_finished": "Treinamento concluído.",
+        "stats_display": "Estatísticas:\nIA: Vitórias: {ai_wins}, Derrotas: {ai_losses}, Empates: {ai_draws}\nHumano: Vitórias: {human_wins}, Derrotas: {human_losses}, Empates: {human_draws}\nOponente: Vitórias: {opponent_wins}, Derrotas: {opponent_losses}, Empates: {opponent_draws}",
+        "stats_reset": "Estatísticas redefinidas.",
+        "choose_difficulty": "Escolha a dificuldade (fácil, médio, difícil): ",
+        "invalid_difficulty": "Dificuldade inválida. Disponíveis: fácil, médio, difícil.",
+        "difficulty_set": "Dificuldade definida para: {difficulty}.",
+        "training_display_prompt": "Escolha o modo de exibição de treinamento (desligado, mínimo, detalhado): ",
+        "invalid_display_mode": "Modo inválido. Disponíveis: desligado, mínimo, detalhado.",
+        "display_mode_set": "Modo de exibição de treinamento definido para: {mode}.",
+        "training_opponent_prompt": "Escolha o oponente de treinamento (ia, aleatório): ",
+        "invalid_opponent": "Oponente inválido. Disponíveis: ia, aleatório.",
+        "opponent_set": "Oponente de treinamento definido para: {opponent}.",
+        "ai_delay_prompt": "Insira o atraso de movimento da IA (em segundos, 0-5): ",
+        "invalid_delay": "Atraso inválido. Insira um número entre 0 e 5.",
+        "delay_set": "Atraso definido para: {delay} segundos.",
+        "language_prompt": "Escolha o idioma (ru, en, es, hi, ar, zh, fr, de, ja, pt): ",
+        "invalid_language": "Idioma inválido. Disponíveis: ru, en, es, hi, ar, zh, fr, de, ja, pt.",
+        "language_set": "Idioma definido para: {language}.",
+        "settings_exit": "Saindo das configurações.",
+        "game_start": "O jogo começa! Você é {player}",
+        "invalid_move": "Movimento inválido. Tente novamente.",
+        "ai_move": "IA ({player}) move para a posição {move}.",
+        "player_wins": "{player} vence!",
+        "draw": "Empate!",
+        "play_again": "Jogar novamente? [s/n]: ",
+        "game_exit": "Jogo terminado.",
+        "ai_vs_ai_start": "Jogo IA contra IA começa!",
+        "ai_wins": "IA ({player}) vence!",
+        "set_difficulty_before_game": "Escolha a dificuldade: ",
+        "reset_prompt": "Redefinir? [s/n]: "
+    },
+    "la": {
+        "welcome_message": "Salvete ad Ludum Tic-Tac-Toe!",
+        "main_menu": "Menu Principale:\n1. Ludus Classicus\n2. Ludus AI contra AI\n3. Configuratio\n4. Exire",
+        "choose_option": "Elege optionem: ",
+        "invalid_input": "Inscriptio invalida, iterum tenta.",
+        "settings_title": "Configuratio:",
+        "menu_logs": "1. Activa/Disactiva Acta (nunc {status})",
+        "menu_train": "2. Exercere AI (memoria {status})",
+        "menu_reset_ai": "3. Reponere Memoria AI",
+        "menu_show_stats": "4. Monstrare Statistica",
+        "menu_reset_stats": "5. Reponere Statistica",
+        "menu_difficulty": "6. Elege Difficultatem",
+        "menu_training_display": "7. Modus Ostensionis Exercitationis",
+        "menu_training_opponent": "8. Elege Adversarium Exercitationis",
+        "menu_ai_delay": "9. Mora Motus AI",
+        "menu_change_lang": "10. Mutare Linguam",
+        "menu_exit": "11. Exire",
+        "logs_enabled": "activa",
+        "logs_disabled": "inactiva",
+        "logs_toggled_on": "Acta activa sunt.",
+        "logs_toggled_off": "Acta inactiva sunt.",
+        "memory_exists": "exsistit",
+        "memory_empty": "vacua",
+        "press_enter": "Preme Enter ut continuetur...",
+        "training_reset": "Memoria AI et humana reposita est.",
+        "training_started": "Exercitatio incepta (ludi: {games}).",
+        "training_game_info": "Ludus {game}: {player1} contra {player2}",
+        "training_board_display": "Ludus {game}, {player} movet ad positionem {move}:",
+        "training_progress": "Progressus: {current}/{total} ludi",
+        "training_stats": "Resultatus interim: Victoriae: {wins}, Amissiones: {losses}, Paria: {draws}",
+        "training_finished": "Exercitatio completa est.",
+        "stats_display": "Statistica:\nAI: Victoriae: {ai_wins}, Amissiones: {ai_losses}, Paria: {ai_draws}\nHumanus: Victoriae: {human_wins}, Amissiones: {human_losses}, Paria: {human_draws}\nAdversarius: Victoriae: {opponent_wins}, Amissiones: {opponent_losses}, Paria: {opponent_draws}",
+        "stats_reset": "Statistica reposita sunt.",
+        "choose_difficulty": "Elege difficultatem (facilis, medium, difficilis): ",
+        "invalid_difficulty": "Difficultas invalida. Disponibilia: facilis, medium, difficilis.",
+        "difficulty_set": "Difficultas constituta: {difficulty}.",
+        "training_display_prompt": "Elege modum ostensionis exercitationis (inactiva, minima, detailed): ",
+        "invalid_display_mode": "Modus invalidus. Disponibilia: inactiva, minima, detailed.",
+        "display_mode_set": "Modus ostensionis exercitationis constitutus: {mode}.",
+        "training_opponent_prompt": "Elege adversarium exercitationis (ai, fortuitus): ",
+        "invalid_opponent": "Adversarius invalidus. Disponibilia: ai, fortuitus.",
+        "opponent_set": "Adversarius exercitationis constitutus: {opponent}.",
+        "ai_delay_prompt": "Intra mora motus AI (in secundis, 0-5): ",
+        "invalid_delay": "Mora invalida. Intra numerum inter 0 et 5.",
+        "delay_set": "Mora constituta: {delay} secundae.",
+        "language_prompt": "Elege linguam (ru, en, es, hi, ar, zh, fr, de, ja, pt, la): ",
+        "invalid_language": "Lingua invalida. Disponibilia: ru, en, es, hi, ar, zh, fr, de, ja, pt, la.",
+        "language_set": "Lingua constituta: {language}.",
+        "settings_exit": "Exire ex configuratione.",
+        "game_start": "Ludus incipit! Es {player}",
+        "invalid_move": "Motus invalidus. Iterum tenta.",
+        "ai_move": "AI ({player}) movet ad positionem {move}.",
+        "player_wins": "{player} vincit!",
+        "draw": "Est par!",
+        "play_again": "Iterum ludere? [s/n]: ",
+        "game_exit": "Ludus finitus.",
+        "ai_vs_ai_start": "Ludus AI contra AI incipit!",
+        "ai_wins": "AI ({player}) vincit!",
+        "set_difficulty_before_game": "Elege difficultatem: ",
+        "reset_prompt": "Reponere? [s/n]: "
+    },
+    "uk": {
+        "welcome_message": "Ласкаво просимо до гри Хрестики-нулики!",
+        "main_menu": "Головне меню:\n1. Класична гра\n2. Штучний інтелект проти ШІ\n3. Настройки\n4. Вихід",
+        "choose_option": "Виберіть опцію: ",
+        "invalid_input": "Невірний ввід, спробуйте ще раз.",
+        "settings_title": "Налаштування:",
+        "menu_logs": "1. Увімкнути/вимкнути логи (зараз {status})",
+        "menu_train": "2. Навчати ШІ (пам’ять {status})",
+        "menu_reset_ai": "3. Скинути пам’ять ШІ",
+        "menu_show_stats": "4. Показати статистику",
+        "menu_reset_stats": "5. Скинути статистику",
+        "menu_difficulty": "6. Вибрати складність",
+        "menu_training_display": "7. Режим відображення навчання",
+        "menu_training_opponent": "8. Вибрати суперника для навчання",
+        "menu_ai_delay": "9. Затримка ходу ШІ",
+        "menu_change_lang": "10. Змінити мову",
+        "menu_exit": "11. Вихід",
+        "logs_enabled": "увімкнено",
+        "logs_disabled": "вимкнено",
+        "logs_toggled_on": "Логи увімкнено.",
+        "logs_toggled_off": "Логи вимкнено.",
+        "memory_exists": "існує",
+        "memory_empty": "порожня",
+        "press_enter": "Натисніть Enter, щоб продовжити...",
+        "training_reset": "Пам’ять ШІ та людини скинуто.",
+        "training_started": "Навчання розпочато (ігор: {games}).",
+        "training_game_info": "Гра {game}: {player1} проти {player2}",
+        "training_board_display": "Гра {game}, гравець {player} ходить на позицію {move}:",
+        "training_progress": "Прогрес: {current}/{total} ігор",
+        "training_stats": "Проміжні результати: Перемоги: {wins}, Поразки: {losses}, Нічиї: {draws}",
+        "training_finished": "Навчання завершено.",
+        "stats_display": "Статистика:\nШІ: Перемоги: {ai_wins}, Поразки: {ai_losses}, Нічиї: {ai_draws}\nЛюдина: Перемоги: {human_wins}, Поразки: {human_losses}, Нічиї: {human_draws}\nСуперник: Перемоги: {opponent_wins}, Поразки: {opponent_losses}, Нічиї: {opponent_draws}",
+        "stats_reset": "Статистику скинуто.",
+        "choose_difficulty": "Виберіть складність (легка, середня, важка): ",
+        "invalid_difficulty": "Невірна складність. Доступні: легка, середня, важка.",
+        "difficulty_set": "Складність встановлено: {difficulty}.",
+        "training_display_prompt": "Виберіть режим відображення навчання (вимкнено, мінімальний, детальний): ",
+        "invalid_display_mode": "Невірний режим. Доступні: вимкнено, мінімальний, детальний.",
+        "display_mode_set": "Режим відображення навчання встановлено: {mode}.",
+        "training_opponent_prompt": "Виберіть суперника для навчання (ШІ, випадковий): ",
+        "invalid_opponent": "Невірний суперник. Доступні: ШІ, випадковий.",
+        "opponent_set": "Суперника для навчання встановлено: {opponent}.",
+        "ai_delay_prompt": "Введіть затримку ходу ШІ (у секундах, 0-5): ",
+        "invalid_delay": "Невірна затримка. Введіть число від 0 до 5.",
+        "delay_set": "Затримку встановлено: {delay} секунд.",
+        "language_prompt": "Виберіть мову (ru, en, es, hi, ar, zh, fr, de, ja, pt, la, uk): ",
+        "invalid_language": "Невірна мова. Доступні: ru, en, es, hi, ar, zh, fr, de, ja, pt, la, uk.",
+        "language_set": "Мову встановлено: {language}.",
+        "settings_exit": "Вихід з налаштувань.",
+        "game_start": "Гра починається! Ви {player}",
+        "invalid_move": "Невірний хід. Спробуйте ще раз.",
+        "ai_move": "ШІ ({player}) ходить на позицію {move}.",
+        "player_wins": "{player} перемагає!",
+        "draw": "Нічия!",
+        "play_again": "Грати ще раз? [так/ні]: ",
+        "game_exit": "Гру завершено.",
+        "ai_vs_ai_start": "Гра ШІ проти ШІ починається!",
+        "ai_wins": "ШІ ({player}) перемагає!",
+        "set_difficulty_before_game": "Виберіть складність: ",
+        "reset_prompt": "Скинути? [так/ні]: "
+  }
+}
+
+
+def get_text(key, **kwargs):
+    lang = settings.get("language", "ru")
+    text = translations.get(lang, translations["ru"]).get(key, key)
+    return text.format(**kwargs if kwargs else {})
+
+def print_board(board, show_numbers=False, clear_screen=False):
+    if clear_screen:
+        os.system('cls' if os.name == 'nt' else 'clear')
+    print("╔═══╦═══╦═══╗")
+    for i in range(3):
+        row = "?"
+        for j in range(3):
+            idx = i * 3 + j
+            cell = board[idx]
+            if show_numbers and cell == " ":
+                row += f" {idx+1} ║"
+            else:
+                row += f" {cell} ║"
+        print(row)
+        if i < 2:
+            print("   ╠═══╬═══╬═══╣")
+        else:
+            print("╚═══╩═══╩═══╝")
+    time.sleep(2)  
+
+def check_winner(board, player):
+    wins = [(0,1,2), (3,4,5), (6,7,8), (0,3,6), (1,4,7), (2,5,8), (0,4,8), (2,4,6)]
+    return any(board[a] == board[b] == board[c] == player for a, b, c in wins)
+
+def is_board_full(board):
+    return " " not in board
+
+def get_available_moves(board):
+    return [i for i, spot in enumerate(board) if spot == " "]
+
+def log_move(board, move, player):
+    if settings["logs_enabled"]:
+        ai_logs.append({"board": board[:], "move": move, "player": player})
+
+def update_stats(winner, mode="classic"):
+    if mode == "classic":
+        if winner:
+            stats["Human"]["wins"] += 1
+        else:
+            stats["Human"]["draws"] += 1
+    elif mode in ("player_vs_ai", "ai_vs_player"):
+        if winner == "AI":
+            stats["AI"]["wins"] += 1
+            stats["Human"]["losses"] += 1
+        elif winner == "Human":
+            stats["Human"]["wins"] += 1
+            stats["AI"]["losses"] += 1
+        else:
+            stats["AI"]["draws"] += 1
+            stats["Human"]["draws"] += 1
+    elif mode == "ai_vs_ai":
+        if winner == "AI":
+            stats["AI"]["wins"] += 1
+        else:
+            stats["AI"]["draws"] += 1
+    elif mode == "training":
+        if winner == "AI":
+            stats["AI"]["wins"] += 1
+            stats["Opponent"]["losses"] += 1
+        elif winner == "Opponent":
+            stats["Opponent"]["wins"] += 1
+            stats["AI"]["losses"] += 1
+        else:
+            stats["AI"]["draws"] += 1
+            stats["Opponent"]["draws"] += 1
+
+def evaluate_board(board):
+    if check_winner(board, "X"):
+        return 1
+    if check_winner(board, "O"):
+        return -1
+    if is_board_full(board):
+        return 0
+    return None
+
+def minimax(board, depth, is_maximizing, player, opponent, alpha=-float("inf"), beta=float("inf")):
+    score = evaluate_board(board)
+    if score is not None:
+        return score
+    if is_maximizing:
+        best_score = -float("inf")
+        for move in get_available_moves(board):
+            board[move] = player
+            score = minimax(board, depth + 1, False, player, opponent, alpha, beta)
+            board[move] = " "
+            best_score = max(best_score, score)
+            alpha = max(alpha, best_score)
+            if beta <= alpha:
+                break
+        return best_score
+    else:
+        best_score = float("inf")
+        for move in get_available_moves(board):
+            board[move] = opponent
+            score = minimax(board, depth + 1, True, player, opponent, alpha, beta)
+            board[move] = " "
+            best_score = min(best_score, score)
+            beta = min(beta, best_score)
+            if beta <= alpha:
+                break
+        return best_score
+
+def ai_move(board, player, difficulty, mode="player_vs_ai"):
+    opponent = "O" if player == "X" else "X"
+    if difficulty == "easy":
+        time.sleep(random.uniform(2, 4))
+        return random.choice(get_available_moves(board))
+    if difficulty == "medium":
+        if random.random < settings["adaptivity_level"]:
+            key = str(tuple(board))
+            if player == "X" and key in ai_memory:
+                time.sleep(random.uniform(3, 5)) 
+                return random.choices(ai_memory[key]["moves"], weights=ai_memory[key]["weights"])[0]
+            elif player == "O" and key in human_memory:
+                time.sleep(random.uniform(3, 5)) 
+                return random.choices(human_memory[key]["moves"], weights=human_memory[key]["weights"])[0]
+        time.sleep(random.uniform(2, 4)) 
+        return random.choice(get_available_moves(board))
+    if difficulty == "hard":
+        if mode == "training" and random.random() < 0.00001:
+            time.sleep(random.uniform(2, 4)) 
+            return random.choice(get_available_moves(board))
+        best_score = -float("inf"if player == "X" else float("inf"))
+        best_moves = []
+        for move in get_available_moves(board):
+            board[move] = player
+            score = minimax(board, 0, player == "O", player, opponent)
+            board[move] = " "
+            if player == "X":
+                if score > best_score:
+                    best_score = score
+                    best_moves = [move]
+                elif score == best_score:
+                    best_moves.append(move)
+            else:
+                if score < best_score:
+                    best_score = score
+                    best_moves = [move]
+                elif score == best_score:
+                    best_moves.append(move)
+        time.sleep(random.uniform(5, 8)) 
+        return random.choice(best_moves)
+
+def human_move(board, player):
+    print_board(board, show_numbers=True)
+    try:
+        move = int(input(f"player_move_prompt")) - 1
+        if 0 <= move < 9 and board[move] == " ":
+            return move
+        print("invalid_move")
+        return human_move(board, player)
+    except ValueError:
+        print("invalid_input_number")
+        return human_move(board, player)
+
+def ai_move(board, player, difficulty, mode="player_vs_ai"):
+    opponent = "O" if player == "X" else "X"
+    if difficulty == "easy":
+        time.sleep(random.uniform(1, 3))
+        return random.choice(get_available_moves(board))
+    if difficulty == "medium":
+        if random.random < settings["adaptivity_level"]:
+            key = str(tuple(board))
+            if player == "X" and key in ai_memory:
+                time.sleep(random.uniform(2, 4))
+                return random.choices(ai_memory[key]["moves"], weights=ai_memory[key]["weights"])[0]
+            elif player == "O" and key in human_memory:
+                time.sleep(random.uniform(2, 4))
+                return random.choices(human_memory[key]["moves"], weights=human_memory[key]["weights"])[0]
+        time.sleep(random.uniform(1, 3))
+        return random.choice(get_available_moves(board))
+    if difficulty == "hard":
+        if mode == "training" and random.random() < 0.00001:
+            time.sleep(random.uniform(1, 3))
+            return random.choice(get_available_moves(board))
+        best_score = -float("inf"if player == "X" else float("inf"))
+        best_moves = []
+        for move in get_available_moves(board):
+            board[move] = player
+            score = minimax(board, 0, player == "O", player, opponent)
+            board[move] = " "
+            if player == "X":
+                if score > best_score:
+                    best_score = score
+                    best_moves = [move]
+                elif score == best_score:
+                    best_moves.append(move)
+            else:
+                if score < best_score:
+                    best_score = score
+                    best_moves = [move]
+                elif score == best_score:
+                    best_moves.append(move)
+        time.sleep(random.uniform(4, 7))
+        return random.choice(best_moves)
+
+def check_winner(board, player):
+    wins = [(0,1,2), (3,4,5), (6,7,8), (0,3,6), (1,4,7), (2,5,8), (0,4,8), (2,4,6)]
+    return any(board[a] == board[b] == board[c] == player for a, b, c in wins)
+
+def is_board_full(board):
+    return " " not in board
+
+def update_memory(board, move, player, outcome):
+    board_key = str(tuple(board))
+    memory = ai_memory if player == "X" else human_memory
+    if board_key not in memory:
+        memory[board_key] = {"moves": [], "weights": []}
+    if move not in memory[board_key]["moves"]:
+        memory[board_key]["moves"].append(move)
+        memory[board_key]["weights"].append(1 if outcome == "win" else 0.5)
+    else:
+        idx = memory[board_key]["moves"].index(move)
+        memory[board_key]["weights"][idx] += 1 if outcome == "win" else 0.5
+
+def play_ai_vs_ai():
+    board = [" " for _ in range(9)]
+    current_player = random.choice(["X", "O"])
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(get_text("ai_vs_ai_start"))
+    difficulty = set_difficulty() 
+    settings["difficulty"] = difficulty
+    move_history = []
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(get_text("ai_thinking", player=current_player))
+        move = ai_move(board, current_player, settings["difficulty"], mode="ai_vs_ai")
+        board[move] = current_player
+        move_history.append({"player": current_player, "move": move + 1})
+        print(get_text("ai_moved", player=current_player, move=move + 1))
+        print_board(board, show_numbers=False, clear_screen=False)
+        time.sleep(1)
+        if check_winner(board, current_player):
+            print(get_text("ai_wins", player=current_player))
+            update_stats("AI", mode="ai_vs_ai")
+            break
+        if is_board_full(board):
+            print(get_text("draw"))
+            update_stats(None, mode="ai_vs_ai")
+            break
+        current_player = "O" if current_player == "X" else "X"
+    print(get_text("final_move_history", move_history=move_history))
+    input(get_text("press_enter"))
+    if input(get_text("play_again")).lower() != "y":
+        print(get_text("game_exit"))
+        return False
+    return True
+
+def play_classic():
+    board = [" " for _ in range(9)]
+    current_player = "X"
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(get_text("game_start", player="X"))
+    difficulty = set_difficulty()
+    settings["difficulty"] = difficulty
+    move_history = []
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        move = human_move(board, current_player)
+        if move is None:
+            print(get_text("game_exit"))
+            break
+        move_history.append({"player": current_player, "move": move + 1})
+        board[move] = current_player
+        print_board(board, clear_screen=False)
+        time.sleep(1)
+        if check_winner(board, current_player):
+            print(get_text("player_wins", player=current_player))
+            update_stats("Human", mode="classic")
+            break
+        if is_board_full(board):
+            print(get_text("draw"))
+            update_stats(None, mode="classic")
+            break
+        current_player = "O" if current_player == "X" else "X"
+    print(get_text("final_move_history", move_history=move_history))
+    input(get_text("press_enter"))
+    if input(get_text("play_again")).lower() != "y":
+        print(get_text("game_exit"))
+        return False
+    return True
+
+def play_game(mode="player_vs_ai"):
+    board = [" " for _ in range(9)]
+    human_player = "X" if mode == "player_vs_ai" else "O"
+    current_player = random.choice(["X", "O"])
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(get_text("game_start", player=human_player))
+    difficulty = set_difficulty() 
+    settings["difficulty"] = difficulty
+    move_history = []
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_board(board, show_numbers=True, clear_screen=False)
+        if current_player == human_player:
+            move = human_move(board, current_player)
+            if move is None:
+                print(get_text("game_exit"))
+                break
+            move_history.append({"player": "Human", "move": move + 1})
+            board[move] = current_player
+        else:
+            print(get_text("ai_thinking", player=current_player))
+            move = ai_move(board, current_player, settings["difficulty"], mode=mode)
+            board[move] = current_player
+            move_history.append({"player": "AI", "move": move + 1})
+            print(get_text("ai_move", player=current_player, move=move + 1))
+        print_board(board, clear_screen=False)
+        time.sleep(1)
+        if check_winner(board, current_player):
+            winner = "Human" if current_player == human_player else "AI"
+            print(get_text("player_wins", player=winner))
+            update_stats(winner, mode=mode)
+            break
+        if is_board_full(board):
+            print(get_text("draw"))
+            update_stats(None, mode=mode)
+            break
+        current_player = "O" if current_player == "X" else "X"
+    print(get_text("final_move_history", move_history=move_history))
+    input(get_text("press_enter"))
+    if input(get_text("play_again")).lower() != "y":
+        print(get_text("game_exit"))
+        return False
+    return True
+
+def train_ai(games=100):
+    global ai_memory, human_memory, ai_logs
+    if ai_memory or human_memory:
+        reset = input(get_text("reset_prompt")).lower()
+        if reset == "y":
+            reset_ai()
+            ai_memory = {}
+            human_memory = {}
+            ai_logs.clear()
+            print(get_text("training_reset"))
+    difficulty = set_difficulty()  
+    settings["difficulty"] = difficulty
+    print(get_text("training_started", games=games))
+    wins, losses, draws = 0, 0, 0
+    stats_history = {"wins": [], "losses": [], "draws": []}
+    opponent = settings["training_opponent"]
+    progress_interval = 5
+    all_games_moves = []
+    for game in range(games):
+        board = [" " for _ in range(9)]
+        current_player = "X"
+        players = {"X": "AI", "O": opponent}
+        game_moves = []
+        if settings["training_display"] in ["minimal", "detailed"]:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print(get_text("training_game_info", game=game + 1, player1=players["X"], player2=players["O"]))
+        while True:
+            move = process_move_and_display(board, current_player, players, settings["difficulty"], "training", game_moves, settings["training_display"])
+            if check_winner(board, current_player):
+                outcome = "win" if players[current_player] == "AI" else "loss"
+                if players[current_player] == "AI":
+                    wins += 1
+                    update_stats("AI", mode="training")
+                else:
+                    losses += 1
+                    update_stats("Opponent", mode="training")
+                for move_entry in game_moves:
+                    update_memory(board[:], move_entry["move"] - 1, move_entry["player"], outcome if move_entry["player"] == players[current_player] else ("loss" if outcome == "win" else "win"))
+                if settings["training_display"] in ["minimal", "detailed"]:
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_board(board, show_numbers=False, clear_screen=False)
+                    print(get_text("player_wins", player=players[current_player]))
+                break
+            if is_board_full(board):
+                draws += 1
+                update_stats(None, mode="training")
+                for move_entry in game_moves:
+                    update_memory(board[:], move_entry["move"] - 1, move_entry["player"], "draw")
+                if settings["training_display"] in ["minimal", "detailed"]:
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_board(board, show_numbers=False, clear_screen=False)
+                    print(get_text("draw"))
+                break
+            current_player = "O" if current_player == "X" else "X"
+        all_games_moves.append({"game": game + 1, "moves": game_moves})
+        stats_history["wins"].append(wins)
+        stats_history["losses"].append(losses)
+        stats_history["draws"].append(draws)
+        if settings["training_display"] in ["minimal", "detailed"]:
+            print(get_text("training_game_moves", game=game + 1, moves=game_moves))
+            time.sleep(2)
+            input(get_text("press_enter"))
+        if settings["training_display"] in ["minimal", "detailed"] and (game + 1) % progress_interval == 0:
+            print(get_text("training_progress", current=game + 1, total=games))
+            print(get_text("training_stats", wins=wins, losses=losses, draws=draws))
+            time.sleep(2)
+    print(get_text("training_finished"))
+    print(get_text("training_stats", wins=wins, losses=losses, draws=draws))
+    if settings["training_display"] in ["minimal", "detailed"]:
+        print(get_text("training_all_games_moves"))
+        for game in all_games_moves:
+            print(get_text("training_game_moves", game=game['game'], moves=game['moves']))
+    input(get_text("press_enter"))
+
+def reset_ai():
+    global ai_memory, human_memory
+    ai_memory = {}
+    human_memory = {}
+    ai_logs.clear()
+    print(get_text("training_reset"))
+    input(get_text("press_enter"))
+
+def show_stats():
+    print(get_text("stats_display",
+        ai_wins=stats["AI"]["wins"], ai_losses=stats["AI"]["losses"], ai_draws=stats["AI"]["draws"],
+        human_wins=stats["Human"]["wins"], human_losses=stats["Human"]["losses"], human_draws=stats["Human"]["draws"],
+        opponent_wins=stats["Opponent"]["wins"], opponent_losses=stats["Opponent"]["losses"], opponent_draws=stats["Opponent"]["draws"]))
+    input(get_text("press_enter"))
+
+def reset_stats():
+    global stats
+    stats = {
+        "AI": {"wins": 0, "losses": 0, "draws": 0},
+        "Human": {"wins": 0, "losses": 0, "draws": 0},
+        "Opponent": {"wins": 0, "losses": 0, "draws": 0},}
+    print(get_text("stats_reset"))
+    input(get_text("press_enter"))
+
+def set_difficulty():
+    difficulties = ["easy", "medium", "hard"]
+    lang = settings.get("language", "ru")
+    difficulty_translations = {
+        "ru": ["Легкий", "Средний", "Тяжелый"],
+        "en": ["Easy", "Medium", "Hard"],
+        "es": ["Fácil", "Medio", "Difícil"],
+        "es_MX": ["Fácil", "Medio", "Difícil"],
+        "hi": ["आसान", "मध्यम", "कठिन"],
+        "ar": ["سهل", "متوسط", "صعب"],
+        "zh": ["简单", "中等", "困难"],
+        "fr": ["Facile", "Moyen", "Difficile"],
+        "de": ["Leicht", "Mittel", "Schwer"],
+        "ja": ["簡単", "中級", "難しい"],
+        "pt": ["Fácil", "Médio", "Difícil"],
+        "la": ["Facilis", "Medius", "Difficilis"],
+        "uk": ["Легкий", "Середній", "Важкий"],
+        "sa": ["सुलभ", "मध्यम", "कठिन"]
+    }
+    attempts = 0
+    while attempts < MAX_ATTEMPTS:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(get_text("set_difficulty_before_game"))
+        for i, diff in enumerate(difficulty_translations[lang], 1):
+            print(f"{i}. {diff}")
+        try:
+            choice = int(input(get_text("choose_option")))
+            if 1 <= choice <= 3:
+                difficulty = difficulties[choice - 1]
+                settings["difficulty"] = difficulty
+                print(get_text("difficulty_set", difficulty=difficulty_translations[lang][choice - 1]))
+                input(get_text("press_enter"))
+                return difficulty
+            else:
+                print(get_text("invalid_difficulty"))
+        except ValueError:
+            print(get_text("invalid_difficulty"))
+        attempts += 1
+    print(get_text("invalid_input"))
+    input(get_text("press_enter"))
+    return settings.get("difficulty", "medium")
+
+def set_training_opponent():
+    attempts = 0
+    while attempts < MAX_ATTEMPTS:
+        opponent = input(get_text("training_opponent_prompt")).lower()
+        if opponent in ["ai", "random"]:
+            settings["training_opponent"] = opponent
+            print(get_text("opponent_set", opponent=opponent))
+            input(get_text("press_enter"))
+            return
+        else:
+            print(get_text("invalid_opponent"))
+        attempts += 1
+    print(get_text("invalid_input"))
+    input(get_text("press_enter"))
+
+def set_training_display():
+    attempts = 0
+    while attempts < MAX_ATTEMPTS:
+        mode = input(get_text("training_display_prompt")).lower()
+        if mode in ["off", "minimal", "detailed"]:
+            settings["training_display"] = mode
+            print(get_text("display_mode_set", mode=mode))
+            input(get_text("press_enter"))
+            return
+        else:
+            print(get_text("invalid_display_mode"))
+        attempts += 1
+    print(get_text("invalid_input"))
+    input(get_text("press_enter"))
+
+def set_ai_delay():
+    attempts = 0
+    while attempts < MAX_ATTEMPTS:
+        try:
+            delay = float(input(get_text("ai_delay_prompt")))
+            if 0 <= delay <= 5:
+                settings["ai_delay"] = delay
+                print(get_text("delay_set", delay=delay))
+                input(get_text("press_enter"))
+                return
+            else:
+                print(get_text("invalid_delay"))
+        except ValueError:
+            print(get_text("invalid_delay"))
+        attempts += 1
+    print(get_text("invalid_input"))
+    input(get_text("press_enter"))
+
+def process_move_and_display(board, current_player, players, difficulty, mode, game_moves, training_display, clear_screen=True):
+    if clear_screen and training_display in ["minimal", "detailed"]:
+        os.system('cls' if os.name == 'nt' else 'clear')
+    if training_display == "detailed":
+        print(get_text("player_turn_start", player=current_player))
+    time.sleep(settings["ai_delay"] + 2.0)
+    if players[current_player] == "AI":
+        move = ai_move(board, current_player, difficulty, mode=mode)
+    else:
+        move = random.choice(get_available_moves(board)) if players[current_player] == "random" else ai_move(board, current_player, "medium", mode=mode)
+    board[move] = current_player
+    log_move(board, move, current_player)
+    update_memory(board[:], move, current_player, "pending")
+    game_moves.append({"player": players[current_player], "move": move + 1})
+    if training_display in ["minimal", "detailed"]:
+        if training_display == "detailed":
+            print(get_text("training_board_display", game=len(game_moves), player=players[current_player], move=move + 1))
+        print_board(board, show_numbers=False, clear_screen=False)
+        print(get_text("player_turn_end", player=players[current_player], move=move + 1))
+        time.sleep(3)
+    return move
+
+def display_training_progress(current, total):
+    progress = int((current / total) * 5)
+    bar = "?" * progress + "-" * (5 - progress)
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print(f"\r{settings.get_text('training_progress', current=current, total=total)} [{bar}]", end="")
+
+def display_training_chart(stats_history, games):
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print("\n=== AI Training Progress ===")
+    print("W = Wins, X = Losses, = = Draws")
+    max_display = 5
+    interval = 5
+    for i in range(0, games, interval):
+        if i < len(stats_history["wins"]):
+            wins = stats_history["wins"][i]
+            losses = stats_history["losses"][i]
+            draws = stats_history["draws"][i]
+            scale = max(1, max(wins, losses, draws) // max_display + 1)
+            win_bar = "W" * (wins // scale)
+            loss_bar = "X" * (losses // scale)
+            draw_bar = "=" * (draws // scale)
+            print(f"Game {i+1:3}: {win_bar}{loss_bar}{draw_bar} (W:{wins}, L:{losses}, D:{draws})")
+    if games-1 < len(stats_history["wins"]):
+        wins = stats_history["wins"][games-1]
+        losses = stats_history["losses"][games-1]
+        draws = stats_history["draws"][games-1]
+        scale = max(1, max(wins, losses, draws// max_display + 1))
+        win_bar = "W" * (wins // scale)
+        loss_bar = "X" * (losses // scale)
+        draw_bar = "=" * (draws // scale)
+        print(f"Game {games:3}: {win_bar}{loss_bar}{draw_bar} (W:{wins}, L:{losses}, D:{draws})")
+    print("=" * 40)
+
+def settings_menu():
+    while True:
+        print(get_text("settings_title"))
+        logs_status = get_text("logs_enabled" if settings["logs_enabled"] else "logs_disabled")
+        memory_status = get_text("memory_exists" if ai_memory else "memory_empty")
+        print(get_text("menu_logs", status=logs_status))
+        print(get_text("menu_train", status=memory_status)) 
+        print(get_text("menu_reset_ai"))
+        print(get_text("menu_show_stats"))
+        print(get_text("menu_reset_stats"))
+        print(get_text("menu_difficulty"))
+        print(get_text("menu_training_display"))
+        print(get_text("menu_training_opponent"))
+        print(get_text("menu_ai_delay"))
+        print(get_text("menu_change_lang"))
+        print(get_text("menu_exit"))
+        choice = input(get_text("choose_option"))
+        if choice == "1":
+            settings["logs_enabled"] = not settings["logs_enabled"]
+            print(get_text("logs_toggled_on" if settings["logs_enabled"] else "logs_toggled_off"))
+            input(get_text("press_enter"))
+        elif choice == "2":
+            train_ai()
+        elif choice == "3":
+            reset_ai()
+        elif choice == "4":
+            show_stats()
+        elif choice == "5":
+            reset_stats()
+        elif choice == "6":
+            set_difficulty()
+        elif choice == "7":
+            set_training_display()
+        elif choice == "8":
+            set_training_opponent()
+        elif choice == "9":
+            change_language()
+        elif choice == "10":
+            print(get_text("settings_exit"))
+            break
+        else:
+            print(get_text("invalid_input"))
+
+def main():
+    print(get_text("welcome_message"))
+    if "difficulty" not in settings or settings["difficulty"] not in ["easy", "medium", "hard"]:
+        settings["difficulty"] = set_difficulty()
+    os.system('cls' if os.name == 'nt' else 'clear')
+    while True:
+        print(get_text("main_menu"))
+        choice = input(get_text("choose_option"))
+        if choice == "1":
+            while play_classic():
+                pass
+        elif choice == "2":
+            while play_game(mode="player_vs_ai"):
+                pass
+        elif choice == "3":
+            while play_game(mode="ai_vs_player"):
+                pass
+        elif choice == "4":
+            while play_ai_vs_ai():
+                pass
+        elif choice == "5":
+            settings_menu()
+        elif choice == "6":
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print(get_text("game_exit"))
+            break
+        else:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print(get_text("invalid_input"))
+
+if __name__ == "__main__":
+    main()
